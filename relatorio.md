@@ -46,16 +46,16 @@ graph LR
     EX_N -->|"avança normalmente"| MEM_F
 ```
 
-### Parte 2: Código Assembly (Integrante 2)
+### Parte 2: Código Assembly (João Pedro)
 *(Placeholder: Descrever as modificações realizadas na task `load_program_full_dependencies`, detalhando a inserção manual de NOPs e reordenação de código assembly para testar a mitigação de hazards.)*
 
-### Parte 3a: Forwarding (Integrante 3)
+### Parte 3a: Forwarding (Lucas Carneiro)
 *(Placeholder: Descrever o desenvolvimento do módulo `ForwardingUnit.v` para os estágios MEM e WB, explicando como o bypass (encaminhamento de dados) evita stalls causados por hazards de dependência de dados RAW.)*
 
-### Parte 3b: Hazard Detection (Integrante 4)
+### Parte 3b: Hazard Detection (Pedro Debs)
 *(Placeholder: Descrever o desenvolvimento do módulo `HazardDetectionUnit.v` responsável por identificar hazards do tipo load-use, gerando bolhas (stalls) de forma dinâmica no pipeline quando dados de memória são imediatamente necessários na ALU.)*
 
-## Resultados Obtidos
+## Resultados Obtidos (Bruno Menezes)
 
 A validação inicial do sistema com a `BranchUnit.v` e mecanismo de descarte confirmou o sucesso da **Parte 1**. Na simulação do conjunto de testes:
 - O módulo efetuou o **desvio** corretamente com base no sucesso da comparação de operandos, resultando em 1 Branch sinalizado e 1 Flush executado.
@@ -63,8 +63,30 @@ A validação inicial do sistema com a `BranchUnit.v` e mecanismo de descarte co
 
 Por outro lado, foram registrados erros lógicos em valores computados nos registradores `x2`, `x3`, `x4` e `x7`. Tais erros são o comportamento **esperado** da nossa CPU nesse primeiro cenário, uma vez que as lógicas das próximas etapas (*ForwardingUnit* e *HazardDetectionUnit*) encontram-se temporariamente ausentes, inviabilizando o tratamento das pesadas dependências de dados presentes nas instruções sequenciais.
 
+No que diz respeito às métricas de avaliação, foram realizados testes para validar o comportamento esperado e obter informações sobre o funcionamento do pipeline. Na abordagem com inserção de bolhas (NOPs), utiliza-se uma operação ADDI que soma zero a zero, servindo apenas para expandir os ciclos de execução e garantir que um registrador seja escrito antes de ser lido por uma instrução subsequente. Essa abordagem é interessante para este momento inicial, pois permite visualizar parâmetros do pipeline sob a hipótese de que a técnica garante o funcionamento correto ao custo de desempenho inferior em relação a uma implementação com forwarding.
+
+Assim, foi encontrado os seguintes resultados ao simular utilizando as bolhas: ![Imagem resultados com nops](image1.png)
+
+Os resultados obtidos na simulação com NOPs foram os seguintes: CPI de 3,71, zero stalls, zero bypasses e 26 ciclos totais. Esses valores são esperados: o número de instruções aumenta consideravelmente em relação ao programa original devido aos NOPs inseridos, e a ausência de stalls é consequência direta dessa abordagem. Um stall ocorre quando uma instrução necessita de um valor em um registrador que ainda não foi escrito por uma operação anterior, ao inserir bolhas manualmente, essa situação é evitada de forma conservadora, eliminando conflitos ao custo de reduzir o paralelismo do pipeline.
+
+Analisando agora a implementação do fowarding, que é uma implementação que busca evitar stalls, em que ao inves de esperar que o dado seja escrito para que a proxima operação seja executada, se encaminha o dado após a execução de uma operação para a proxima antes de gravar o mesmo. Isso se faz fisicamente ao implementar multiplexadores com uma saida a mais que conecta o fim do estado EX da primeira execução com o inicio do estagio EX da proxima, garantindo que o dado que ia ser gravado estará correto, mas sem precisar de parar a execução devido ao tempo de espera do estagio de escrita. Nos casos em que o forwarding não é suficiente, especificamente no hazard do tipo load-use, em que o dado só está disponível após o estágio MEM, a unidade de detecção de hazards insere um stall automaticamente.
+
+Ao implementar tanto o fowarding quanto o o hazarding detection, eliminando o uso dos nops, se obteve os seguintes resultados: ![alt text](image-1.png)
+
+Com a implementação do forwarding e da detecção de hazards, eliminando o uso dos NOPs, obtiveram-se os seguintes resultados: CPI de 2,14, 15 ciclos, 1 stall e bypasses ativos. A melhora em relação à abordagem anterior é expressiva: o CPI caiu de 3,71 para 2,14 e o número de ciclos reduziu de 26 para 15. O único stall registrado ocorreu no caso inevitável de dependência load-use, demonstrando que a lógica implementada insere stalls somente quando estritamente necessário. Quanto ao impacto do branch no desempenho, a resolução do desvio condicional ocorre no estágio EX, o que exige o flush das instruções já carregadas no pipeline quando o desvio é tomado. Esse mecanismo introduz uma penalidade de ciclos, aumentando o CPI e evidenciando a necessidade de técnicas como predição de desvios para mitigar esse impacto em programas com muitos desvios condicionais.
+
+Em termos da branch, ela impacta negativamente o desempenho do pipeline devido à necessidade da resolução da mesma no estágio de execução. Quando se faz o desvio, instruções buscadas anteriormente são inpossibilitadas de continuar, exigindo o flush do pipeline. Esse mecanismo gera penalidades ao sistema, aumentando o número de ciclos e o CPI. Assim, branches reduzem a eficiência do pipeline ao interromper a sequencia de instruções, evidenciando a necessidade de abordagens como predição de desvios para mitigação desse impacto.
+
 ## Conclusão
-*(Placeholder: Síntese do grupo após a finalização de todos os módulos. Analisar o impacto da introdução completa dos tratamentos de hazards e do forwarding nas taxas de CPI (Cycles Per Instruction) e no desempenho da máquina comparado ao uso exclusivo de stalls e flushes.)*
+O desenvolvimento deste trabalho permitiu compreender, de forma prática, os principais desafios envolvidos na implementação de um processador com pipeline, especialmente no tratamento de hazards de dados e de controle em uma arquitetura RISC-V. A divisão incremental das etapas foi fundamental para evidenciar como cada mecanismo adicionado ao pipeline impacta diretamente no desempenho do processador.
+
+Na primeira etapa, referente ao tratamento de branches, observou-se que desvios condicionais introduzem penalidades ao pipeline. Como a decisão do branch ocorre no estágio EX, instruções previamente carregadas tornam-se inválidas quando o desvio é tomado, exigindo o flush do pipeline e a inserção de NOPs. Esse comportamento reduz a eficiência da execução sobreposta, aumentando o número de ciclos e o CPI, e demonstra a importância de técnicas como predição de desvios para minimizar o impacto dos hazards de controle.
+
+Na segunda etapa, com reordenação de instruções e inserção manual de bolhas, foi possível garantir a execução correta do programa sem mecanismos automáticos de detecção de dependências. Entretanto, essa abordagem apresentou custo elevado em desempenho: a inserção de NOPs aumentou o número total de instruções e ciclos executados, resultando em CPI de 3,71. A ausência de stalls confirma que as bolhas atuam como solução conservadora para evitar conflitos de dependência, porém ao custo direto de reduzir o paralelismo e a eficiência do pipeline.
+
+Na terceira etapa, a implementação das unidades de Hazard Detection e Forwarding permitiu uma abordagem mais eficiente e próxima de arquiteturas reais. O forwarding possibilitou encaminhar dados diretamente entre estágios do pipeline sem aguardar a escrita no banco de registradores, reduzindo a necessidade de interrupções na execução. Como resultado, houve melhora expressiva nas métricas: o CPI reduziu de 3,71 para 2,14 e o número de ciclos caiu de 26 para 15. O único stall registrado ocorreu no caso de dependência load-use, que é estruturalmente inevitável mesmo com forwarding ativo, confirmando que a lógica implementada opera corretamente.
+
+Dessa forma, os resultados obtidos validam o funcionamento correto dos mecanismos implementados e evidenciam a importância do forwarding e da detecção de hazards para aumentar a eficiência de arquiteturas pipelineadas. Comparando as abordagens, conclui-se que o uso exclusivo de stalls, flushes e NOPs garante corretude, porém compromete fortemente o desempenho, enquanto a introdução de forwarding reduz penalidades e melhora significativamente o aproveitamento do pipeline. Assim, o trabalho demonstrou na prática como técnicas de tratamento de hazards são fundamentais para aproximar o comportamento do processador de implementações modernas de alto desempenho.
 
 ## Declaração de Uso de IA
 
@@ -114,3 +136,200 @@ Este trabalho é realizado em grupo, e a minha responsabilidade é a primeira et
 ### **Prompt Utilizado na Parte 3b**
 
 ### **Prompt Utilizado na Parte 4**
+Atue como um Engenheiro de Hardware especialista em RISC-V. Tenho uma implementação de pipeline de 5 estágios em Verilog dividida entre as pastas src e tb.
+Objetivo: Automatizar a extração de métricas (CPI, Stalls, Flushes) para o relatório acadêmico.Estrutura:
+
+src/: Contém RISCVCPU.v, BranchUnit.v, ForwardingUnit.v, HazardDetectionUnit.v e PipelineStats.v.
+tb/: Contém tb_RISCVCPU.v.
+Tarefas:
+
+Analise o PipelineStats.v e sugira como conectá-lo aos sinais de controle do pipeline (stall, flush, branch_taken) em tb_RISCVCPU.v.
+Gere um guia que compile os fontes e o testbench, execute a simulação e gere um arquivo de log formatado com os contadores de ciclo.
+Como calcular matematicamente o CPI final baseando-se no número total de ciclos (cycle_count) e no número de instruções commitadas (instr_count)? module PipelineStats (
+    input clock,
+    input reset,
+
+    input instr_commit,
+    input stall,
+    input bypassA_MEM,
+    input bypassB_MEM,
+    input bypassA_WB,
+    input bypassB_WB,
+    input branch_taken,
+    input flush,
+
+    output reg [31:0] cycle_count,
+    output reg [31:0] instr_count,
+    output reg [31:0] stall_count,
+    output reg [31:0] bypass_count,
+    output reg [31:0] branch_taken_count,
+    output reg [31:0] flush_count
+);
+
+    always @(posedge clock) begin
+        if (reset) begin
+            cycle_count        <= 32'd0;
+            instr_count        <= 32'd0;
+            stall_count        <= 32'd0;
+            bypass_count       <= 32'd0;
+            branch_taken_count <= 32'd0;
+            flush_count        <= 32'd0;
+        end
+        else begin
+                      cycle_count <= cycle_count + 32'd1;
+
+            if (instr_commit) begin
+                instr_count <= instr_count + 32'd1;
+            end
+
+            if (stall) begin
+                stall_count <= stall_count + 32'd1;
+            end
+
+            if (bypassA_MEM || bypassB_MEM || bypassA_WB || bypassB_WB) begin
+                bypass_count <= bypass_count + 32'd1;
+            end
+
+            if (branch_taken) begin
+                branch_taken_count <= branch_taken_count + 32'd1;
+            end
+
+            if (flush) begin
+                flush_count <= flush_count + 32'd1;
+            end
+        end
+    end
+
+endmodule 
+Ai tem 2 arquivos da pasta src o pipeline stats e o RISCVCPU.v e o da pasta tb.
+
+Entendido! Vou criar um guia prático de compilação, execução e análise de métricas com Icarus Verilog.Agora vou criar o guia completo:
+1. Estrutura de diretórios esperada
+projeto/
+├── src/
+│   ├── RISCVCPU.v
+│   ├── PipelineStats.v
+│   ├── ForwardingUnit.v
+│   ├── HazardDetectionUnit.v
+│   └── BranchUnit.v
+├── tb/
+│   └── tb_RISCVCPU.v
+├── sim/          ← gerado automaticamente
+└── Makefile
+
+2. Makefile completo
+makefile# Makefile — RISC-V Pipeline
+IVERILOG = iverilog
+VVP      = vvp
+SRCS     = src/PipelineStats.v src/ForwardingUnit.v src/HazardDetectionUnit.v \
+           src/BranchUnit.v src/RISCVCPU.v
+TB       = tb/tb_RISCVCPU.v
+OUT      = sim/sim.out
+LOG      = sim/results.log
+
+all: run
+
+$(OUT): $(SRCS) $(TB)
+	mkdir -p sim
+	$(IVERILOG) -g2012 -o $(OUT) $(SRCS) $(TB)
+
+run: $(OUT)
+	$(VVP) $(OUT) | tee $(LOG)
+
+wave: $(OUT)
+	$(VVP) $(OUT)
+	gtkwave sim/wave.vcd &
+
+clean:
+	rm -rf sim/
+Comandos do dia a dia:
+bashmake          # compila + simula + salva log em sim/results.log
+make wave     # abre GTKWave com o .vcd gerado
+make clean    # limpa tudo para recompilar do zero
+
+3. Compilar e simular manualmente (sem Makefile)
+bash# Compilar todos os fontes + testbench de uma vez
+iverilog -g2012 -o sim/sim.out \
+  src/PipelineStats.v \
+  src/ForwardingUnit.v \
+  src/HazardDetectionUnit.v \
+  src/BranchUnit.v \
+  src/RISCVCPU.v \
+  tb/tb_RISCVCPU.v
+
+# Executar e salvar log
+vvp sim/sim.out | tee sim/results.log
+
+# Ver o log depois
+cat sim/results.log
+A flag -g2012 garante suporte a SystemVerilog 2012 — importante para $itor() e tarefas automáticas que você usa no testbench.
+
+4. O que o print_stats imprime e como ler
+O log vai mostrar algo assim:
+============================================
+Program      : full_dependencies
+Cycles       : 23
+Instructions : 7
+Stalls       : 2
+Bypasses     : 4
+Branches     : 1
+Flushes      : 1
+CPI          : 3.29
+============================================
+CampoO que contacycle_countTodo posedge clock após o resetinstr_countInstruções que passaram pelo estágio WB (instr_commit)stall_countCiclos em que stall == 1 (load-use hazard)bypass_countCiclos com qualquer forward ativo (MEM→EX ou WB→EX)branch_taken_countDesvios efetivamente tomadosflush_countFlushes do pipeline (= branch_taken no seu design)
+
+5. Cálculo matemático do CPI
+CPI = cycle_count / instr_count
+Decomposição analítica — permite prever o CPI antes de simular:
+CPI = 1  +  (stall_count / instr_count)  +  (flush_count × 2 / instr_count)
+       ↑              ↑                              ↑
+   ideal          load-use                    branch penalty
+               (1 ciclo cada)              (2 instruções flushadas)
+Se CPI > 1.0 o motivo estará em stall_count ou flush_count. Use isso para validar o valor calculado pelo $itor do testbench.
+
+6. Workflow de comparação entre experimentos
+A abordagem mais prática é renomear o log a cada variante:
+bash# Baseline (com forwarding + hazard detection)
+make run
+cp sim/results.log sim/log_baseline.txt
+
+# Variante: desabilitar forwarding (edite ForwardingUnit.v para sempre retornar NO_FORWARD)
+make clean && make run
+cp sim/results.log sim/log_sem_forwarding.txt
+
+# Diff rápido
+diff sim/log_baseline.txt sim/log_sem_forwarding.txt
+Para comparar vários experimentos de uma vez:
+bashgrep -E "CPI|Stalls|Bypasses|Flushes" sim/log_*.txt
+Saída exemplo:
+log_baseline.txt:        Stalls  : 2
+log_baseline.txt:        Bypasses: 4
+log_baseline.txt:        CPI     : 3.29
+log_sem_forwarding.txt:  Stalls  : 6
+log_sem_forwarding.txt:  Bypasses: 0
+log_sem_forwarding.txt:  CPI     : 4.57
+
+7. Checklist de conexão do PipelineStats
+O RISCVCPU.v que você forneceu já instancia PipelineStats corretamente — os sinais estão todos conectados via assign e a instanciação está no corpo do módulo. O que o testbench acessa via cpu.stats.cycle_count etc. já funciona. Só confirme que:
+
+PipelineStats.v está na lista de fontes passada ao iverilog — ele não é incluído via include, precisa estar explícito na linha de compilação.
+O nome da instância no RISCVCPU.v é stats — o testbench usa cpu.stats.*, então não renomeie.
+Os outputs de PipelineStats que o testbench lê (cycle_count, instr_count, etc.) são output reg, então são visíveis diretamente via hierarquia de instância.
+
+ ## Prompt 2
+Ok agora pode revisar esse texto, corrgindo a gramatica e a coesão entre as informações da parte de desenvolvimento e da parte de conclusão
+Aqui está o texto revisado:
+
+Métricas de Avaliação
+No que diz respeito às métricas de avaliação, foram realizados testes para validar o comportamento esperado e obter informações sobre o funcionamento do pipeline. Na abordagem com inserção de bolhas (NOPs), utiliza-se uma operação ADDI que soma zero a zero, servindo apenas para expandir os ciclos de execução e garantir que um registrador seja escrito antes de ser lido por uma instrução subsequente. Essa abordagem é interessante para este momento inicial, pois permite visualizar parâmetros do pipeline sob a hipótese de que a técnica garante o funcionamento correto ao custo de desempenho inferior em relação a uma implementação com forwarding.
+Os resultados obtidos na simulação com NOPs foram os seguintes: CPI de 3,71, zero stalls, zero bypasses e 26 ciclos totais. Esses valores são esperados: o número de instruções aumenta consideravelmente em relação ao programa original devido aos NOPs inseridos, e a ausência de stalls é consequência direta dessa abordagem. Um stall ocorre quando uma instrução necessita de um valor em um registrador que ainda não foi escrito por uma operação anterior — ao inserir bolhas manualmente, essa situação é evitada de forma conservadora, eliminando conflitos ao custo de reduzir o paralelismo do pipeline.
+Analisando agora a implementação do forwarding, esta técnica busca evitar stalls ao encaminhar o resultado de uma operação diretamente para a entrada da próxima, antes mesmo que ele seja gravado no banco de registradores. Isso é feito fisicamente por meio de multiplexadores com entradas adicionais que conectam a saída do estágio EX de uma instrução à entrada do estágio EX da instrução seguinte, garantindo que o dado correto esteja disponível sem a necessidade de interromper a execução do pipeline. Nos casos em que o forwarding não é suficiente — especificamente no hazard do tipo load-use, em que o dado só está disponível após o estágio MEM — a unidade de detecção de hazards insere um stall automaticamente.
+Com a implementação do forwarding e da detecção de hazards, eliminando o uso dos NOPs, obtiveram-se os seguintes resultados: CPI de 2,14, 15 ciclos, 1 stall e bypasses ativos. A melhora em relação à abordagem anterior é expressiva: o CPI caiu de 3,71 para 2,14 e o número de ciclos reduziu de 26 para 15. O único stall registrado ocorreu no caso inevitável de dependência load-use, demonstrando que a lógica implementada insere stalls somente quando estritamente necessário. Quanto ao impacto do branch no desempenho, a resolução do desvio condicional ocorre no estágio EX, o que exige o flush das instruções já carregadas no pipeline quando o desvio é tomado. Esse mecanismo introduz uma penalidade de ciclos, aumentando o CPI e evidenciando a necessidade de técnicas como predição de desvios para mitigar esse impacto em programas com muitos desvios condicionais.
+
+Conclusão
+O desenvolvimento deste trabalho permitiu compreender, de forma prática, os principais desafios envolvidos na implementação de um processador com pipeline, especialmente no tratamento de hazards de dados e de controle em uma arquitetura RISC-V. A divisão incremental das etapas foi fundamental para evidenciar como cada mecanismo adicionado ao pipeline impacta diretamente no desempenho do processador.
+Na primeira etapa, referente ao tratamento de branches, observou-se que desvios condicionais introduzem penalidades ao pipeline. Como a decisão do branch ocorre no estágio EX, instruções previamente carregadas tornam-se inválidas quando o desvio é tomado, exigindo o flush do pipeline e a inserção de NOPs. Esse comportamento reduz a eficiência da execução sobreposta, aumentando o número de ciclos e o CPI, e demonstra a importância de técnicas como predição de desvios para minimizar o impacto dos hazards de controle.
+Na segunda etapa, com reordenação de instruções e inserção manual de bolhas, foi possível garantir a execução correta do programa sem mecanismos automáticos de detecção de dependências. Entretanto, essa abordagem apresentou custo elevado em desempenho: a inserção de NOPs aumentou o número total de instruções e ciclos executados, resultando em CPI de 3,71. A ausência de stalls confirma que as bolhas atuam como solução conservadora para evitar conflitos de dependência, porém ao custo direto de reduzir o paralelismo e a eficiência do pipeline.
+Na terceira etapa, a implementação das unidades de Hazard Detection e Forwarding permitiu uma abordagem mais eficiente e próxima de arquiteturas reais. O forwarding possibilitou encaminhar dados diretamente entre estágios do pipeline sem aguardar a escrita no banco de registradores, reduzindo a necessidade de interrupções na execução. Como resultado, houve melhora expressiva nas métricas: o CPI reduziu de 3,71 para 2,14 e o número de ciclos caiu de 26 para 15. O único stall registrado ocorreu no caso de dependência load-use, que é estruturalmente inevitável mesmo com forwarding ativo, confirmando que a lógica implementada opera corretamente.
+Comparando as três abordagens, conclui-se que o uso exclusivo de NOPs garante corretude, porém compromete fortemente o desempenho. A introdução do forwarding com detecção de hazards reduz as penalidades e melhora significativamente o aproveitamento do pipeline, aproximando o comportamento do processador de implementações modernas. Os resultados obtidos validam o funcionamento dos mecanismos implementados e demonstram na prática como o tratamento adequado de hazards é fundamental para a eficiência de arquiteturas pipelineadas.
+
