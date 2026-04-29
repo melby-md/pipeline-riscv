@@ -25,11 +25,38 @@ module ForwardingUnit (
     end
 
     always @(*) begin
+        // Valores padrão: sem forwarding
         forwardA = NO_FORWARD;
         forwardB = NO_FORWARD;
 
-        // TODO: implementar lógica do forwarding para operando A aqui!!!
-        // TODO: implementar lógica do forwarding para operando B aqui!!!
+        // Lógica de Forwarding para o Operando A (rs1)
+        
+        // 1. Hazard do Estágio EX/MEM (Instrução imediatamente anterior)
+        if ((exmem_op == ALUop) && (idex_rs1 == exmem_rd)) begin
+            forwardA = FROM_MEM;
+        end
+        // 2. Hazard do Estágio MEM/WB (Duas instruções atrás)
+        else if ((memwb_op == ALUop) && (idex_rs1 === memwb_rd)) begin
+            forwardA = FROM_WB_ALU;
+        end
+        else if ((memwb_op == LW) && (idex_rs1 === memwb_rd)) begin
+            forwardA = FROM_WB_LD;
+        end
+
+        // Lógica de Forwarding para o Operando B (rs2)
+        
+        // 1. Hazard do Estágio EX/MEM (Instrução imediatamente anterior)
+        if ((exmem_op == ALUop) && (idex_rs2 == exmem_rd)) begin
+            forwardB = FROM_MEM;
+        end
+        // 2. Hazard do Estágio MEM/WB (Duas instruções atrás)
+        else if ((memwb_op == ALUop) && (idex_rs2 === memwb_rd)) begin
+            forwardB = FROM_WB_ALU;
+        end
+        else if ((memwb_op == LW) && (idex_rs2 === memwb_rd)) begin
+            forwardB = FROM_WB_LD;
+        end
+
     end
 
 endmodule
