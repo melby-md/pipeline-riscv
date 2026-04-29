@@ -19,17 +19,19 @@ module HazardDetectionUnit (
     end
 
     always @(*) begin
-        stall = 1'b0;
 
         // Load-use hazard:
         // If the instruction in EX/MEM is a load and the instruction in ID/EX
         // uses its destination register, the pipeline must stall one cycle.
+    
+    stall = 1'b0;
+    if (exmem_op == LW)
 
-	if (exmem_op == LW) begin
-		if (idex_op == ALUop) begin
+        if (idex_op == ALUop && idex_rs1 == exmem_rd)
+            stall = 1'b1;
 
-		end
-	end
+        else if (idex_op == BEQ && (idex_rs1 == exmem_rd || idex_rs2 == exmem_rd))
+            stall = 1'b1;
     end
 
 endmodule
