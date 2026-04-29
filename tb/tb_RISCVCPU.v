@@ -63,22 +63,45 @@ module tb_RISCVCPU;
         begin
             cpu.DMemory[0] = 32'd10;
 
-            cpu.IMemory[0] = 32'h00002083;  // lw   x1, 0(x0)      # x1 = mem[0]
-            cpu.IMemory[1] = 32'h00508113;  // addi x2, x1, 5      # x2 = x1 + 5
-            cpu.IMemory[2] = 32'h00110193; // addi x3, x2, 1       # x3 = x2 + 1
-            cpu.IMemory[3] = 32'h00302223; // sw   x3, 4(x0)       # mem[1] = x3
-            cpu.IMemory[4] = 32'h00a18213; // addi x4, x3, 10      # x4 = x3 + 10
-            // PC do beq = 20, label está em PC = 32
-            // offset = 32 - 20 = 12 bytes
-            cpu.IMemory[5] = 32'h00420663; // beq  x4, x4, label   # sempre tomado
+            // [0] Carrega x1. Disponível apenas após o ciclo 5.
+            cpu.IMemory[0] = 32'h00002083;  // lw   x1, 0(x0)       # x1 = mem[0]
+            cpu.IMemory[1] = 32'h00000013;  // nop
+            cpu.IMemory[2] = 32'h00000013;  // nop
+            cpu.IMemory[3] = 32'h00000013;  // nop
 
-            cpu.IMemory[6] = 32'h06300293; // addi x5, x0, 99      # deve ser flushado
-            cpu.IMemory[7] = 32'h05800313; // addi x6, x0, 88      # pode ser flushado
+            // [4] Usa x1, gera x2.
+            cpu.IMemory[4] = 32'h00508113;  // addi x2, x1, 5       # x2 = x1 + 5
+            cpu.IMemory[5] = 32'h00000013;  // nop
+            cpu.IMemory[6] = 32'h00000013;  // nop
+            cpu.IMemory[7] = 32'h00000013;  // nop
 
-            // label:
-            cpu.IMemory[8] = 32'h00120393; // addi x7, x4, 1       # x7 = resultado final
+            // [8] Usa x2, gera x3.
+            cpu.IMemory[8] = 32'h00110193;  // addi x3, x2, 1       # x3 = x2 + 1
+            cpu.IMemory[9] = 32'h00000013;  // nop
+            cpu.IMemory[10] = 32'h00000013; // nop
+            cpu.IMemory[11] = 32'h00000013; // nop
 
-            cpu.IMemory[9] = 32'h0000000b; // halt                 # Instrução para finalizar a simulação
+            // [12] Usa x3.
+            cpu.IMemory[12] = 32'h00302223; // sw   x3, 4(x0)       # mem[1] = x3
+            // [13] Também usa x3 (já está seguro pelos nops anteriores). Gera x4.
+            cpu.IMemory[13] = 32'h00a18213; // addi x4, x3, 10  # x4 = x3 + 10
+            cpu.IMemory[14] = 32'h00000013; // nop
+            cpu.IMemory[15] = 32'h00000013; // nop
+            cpu.IMemory[16] = 32'h00000013; // nop
+
+            // [17] BEQ: PC atual = 17 * 4 = 68. 
+            // Alvo (label) está no índice 20. PC alvo = 20 * 4 = 80.
+            // Offset = 80 - 68 = 12 bytes. O hex original 00420663 já aponta para +12.
+            cpu.IMemory[17] = 32'h00420663; // beq  x4, x4, label    # sempre tomado
+
+            // Instruções que serão "flushadas" ou ignoradas se o branch for tomado
+            cpu.IMemory[18] = 32'h06300293; // addi x5, x0, 99       # deve ser flushado
+            cpu.IMemory[19] = 32'h05800313; // addi x6, x0, 88       # pode ser flushado
+
+            // [20] label:
+            cpu.IMemory[20] = 32'h00120393; // addi x7, x4, 1        # x7 = resultado final
+            cpu.IMemory[21] = 32'h0000000b; // halt                  # Instrução para finalizar a simulação
+
         end
     endtask
 
