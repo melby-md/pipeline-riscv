@@ -4,7 +4,7 @@ Alunos: Bruno Menezes Rodrigues Oliveira Vaz,
 João Costa Calazans,
 João Pedro Torres,
 Lucas Carneiro Nassau Malta,
-Pedro Henrique Debs Rabelo,
+Pedro Henrique Debs Rabelo.
 
 ## Introdução
 
