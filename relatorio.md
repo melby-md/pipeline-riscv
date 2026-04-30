@@ -47,14 +47,18 @@ graph LR
 ```
 
 ### Parte 2: Código Assembly (João Pedro)
-*(Placeholder: Descrever as modificações realizadas na task `load_program_full_dependencies`, detalhando a inserção manual de NOPs e reordenação de código assembly para testar a mitigação de hazards.)*
+A task load_program_full_dependencies recebeu modificações para permitir o funcionamento correto de um pipeline. A simulação necessitou da implementação manual de Bolhas ou NOPS entre instruções com interdependência de dados, o que apenas atrasa a execução. Esse atraso é essencial para simular um pipeline real, já que o grande problema das dependências é garantir a confiabilidade do dado lido. Para fazer isso a técnicas de NOP funciona magistralmente, pois ao atrasar a próxima instrução se garante que o dado será escrito no registrador para ser usado pela proxima instrução.
+O código original continha varios problemas de dependências, já na primeira linha o load word (lw) do X1 é seguido por um ADDi X2, X1, 5. Essa estrutura tende a gerar uma leitura errada, devido aos estágios em que se encontram. lw só registra o dado no estágio de Acesso a Memória(MEM) e Escrita mas ADDi necessita do mesmo em Execução (EX).
+Logo, a solução foi a implementação das bolhas, que nessa situação foram 3, para garantir que X1 esteja escrito quando ele for requisitado na soma. Outro detalhe que a modificação requer é a alteração do offset do BEQ, ja que com a inserção de mais operações, que aumentam o número total e ocupam espaço na pilha, o endereço do mesmo será alterado e precisou ser recalculado.
 
 ### Parte 3a: Forwarding (Lucas Carneiro)
-*(Placeholder: Descrever o desenvolvimento do módulo `ForwardingUnit.v` para os estágios MEM e WB, explicando como o bypass (encaminhamento de dados) evita stalls causados por hazards de dependência de dados RAW.)*
+O modulo ForwardingUnit.v foi desenvolvido para resolver hazards do tipo RAW sem a necessidade de interromper o pipeline, reduzindo os stalls. O código original continha apenas os sinais de entrada e saída declarados, sem implementação, com as saídas forwardA e forwardB a ser sempre NO_FORWARD.
+A implementação feita detecta dois casos de bypass para os operadores. O primeiro é o forwarding do estágio MEM, ativado quando a instrução em Execução ou Acesso a Memória (EX/MEM) é uma operação ALU (ALUop), seu registrador destino não é x0 e coincide com rs1 ou rs2 da instrução atual em Decodificação e Execução (ID/EX), nesse caso forwardA ou forwardB recebe FROM_MEM. O segundo é o forwarding do estágio de WB, ativado quando a instrução em MEM/WB é uma operação ALU ou um lw, com condições análogas, resultando em FROM_WB_ALU ou FROM_WB_LD respectivamente. A prioridade do forwarding de MEM sobre WB é garantida pela estrutura if/else if, evitando conflito quando ambos os estágios possuem o mesmo registrador destino.
 
 ### Parte 3b: Hazard Detection (Pedro Debs)
-*(Placeholder: Descrever o desenvolvimento do módulo `HazardDetectionUnit.v` responsável por identificar hazards do tipo load-use, gerando bolhas (stalls) de forma dinâmica no pipeline quando dados de memória são imediatamente necessários na ALU.)*
-
+O código do HazardDetectionUnit.v foi alterado para identificar corretamente casos de hazards load-use, ou seja, quando tem-se uma instrução que utiliza de um valor logo em sequência da instrução de leitura do mesmo. Isto ocorre devido ao estágio, pois como o dado ao ser lido so está disponivel após o estágio de WB, enquanto a próxima utiliza no inicio da EX. Assim, não  há bypass que consiga realizar a entrega do dado a tempo, gerando um stall.
+A lógica implementada verifica se a instrução no estágio EX ou MEM é um LW e, em caso positivo, checa se a instrução atualmente em ID ou EX é uma ALUop que utiliza rs1 ou rs2 coincidentes com o registrador destino do load, uma  Store Word (SW) que utiliza esse registrador como base de endereço, ou um BEQ que depende do valor em qualquer um dos seus dois operandos. Quando qualquer uma dessas condições é satisfeita, o sinal de stall é ativado, parando os estágios Fetch ou Decodificação (IF ouID) e Decodificação ou Execução (ID ou EX) ao inserir um NOP no estágio EX ouMEM pelo ciclo necessário para que o dado esteja disponível via forwarding no ciclo seguinte.
+ 
 ## Resultados Obtidos (Bruno Menezes)
 
 A validação inicial do sistema com a `BranchUnit.v` e mecanismo de descarte confirmou o sucesso da **Parte 1**. Na simulação do conjunto de testes:
