@@ -140,6 +140,30 @@ Este trabalho é realizado em grupo, e a minha responsabilidade é a primeira et
 
 ### **Prompt Utilizado na Parte 3a**
 
+**Atue como um especialista em Arquitetura de Computadores e Verilog.**
+
+**1. Definição do Problema:**
+
+Preciso implementar o módulo ForwardingUnit.v para um processador RISC-V com pipeline de 5 estágios. O objetivo é evitar stalls causados por dependências de dados verdadeiras (RAW), encaminhando os resultados dos estágios posteriores diretamente para a entrada da ALU.
+
+**2. Requisitos Funcionais (Especificação):**
+
+- **Forwarding de MEM para EX:** Se a instrução no estágio MEM for escrever em um registrador, e esse registrador for um dos operandos (rs1 ou rs2) da instrução no estágio EX, encaminhar o dado do estágio MEM.
+
+- **Forwarding de WB para EX:** Se a instrução no estágio WB for escrever em um registrador, e esse registrador for um dos operandos da instrução no estágio EX (e a condição de MEM para EX não for verdadeira), encaminhar o dado do estágio WB. Isso deve contemplar tanto operações da ALU quanto operações de load.
+
+- **Sinais de Saída:** Gerar os sinais de controle forwardA e forwardB para controlar os multiplexadores na entrada da ALU.
+
+**3. Restrições e Requisitos Não-Funcionais:**
+
+- O design baseia-se na Figura e4.14.3 do livro Computer Organization and Design RISC-V Edition (Patterson & Hennessy).
+
+- O código deve ser escrito em Verilog didático (não sintetizável).
+
+- Utilize apenas lógica combinacional (always @(*) ou assign).
+
+**Tarefa:** Com base nessas especificaçoes, gere o código Verilog para o módulo ForwardingUnit.v baseado nestas especificações, explicando brevemente a prioridade dada ao hazard do estágio MEM sobre o hazard do estágio WB.
+
 ### **Prompt Utilizado na Parte 3b**
 
 ### **Prompt Utilizado na Parte 4**
