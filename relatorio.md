@@ -56,8 +56,12 @@ O modulo ForwardingUnit.v foi desenvolvido para resolver hazards do tipo RAW sem
 A implementação feita detecta dois casos de bypass para os operadores. O primeiro é o forwarding do estágio MEM, ativado quando a instrução em Execução ou Acesso a Memória (EX/MEM) é uma operação ALU (ALUop), seu registrador destino não é x0 e coincide com rs1 ou rs2 da instrução atual em Decodificação e Execução (ID/EX), nesse caso forwardA ou forwardB recebe FROM_MEM. O segundo é o forwarding do estágio de WB, ativado quando a instrução em MEM/WB é uma operação ALU ou um lw, com condições análogas, resultando em FROM_WB_ALU ou FROM_WB_LD respectivamente. A prioridade do forwarding de MEM sobre WB é garantida pela estrutura if/else if, evitando conflito quando ambos os estágios possuem o mesmo registrador destino.
 
 ### Parte 3b: Hazard Detection (Pedro Debs)
-O código do HazardDetectionUnit.v foi alterado para identificar corretamente casos de hazards load-use, ou seja, quando tem-se uma instrução que utiliza de um valor logo em sequência da instrução de leitura do mesmo. Isto ocorre devido ao estágio, pois como o dado ao ser lido so está disponivel após o estágio de WB, enquanto a próxima utiliza no inicio da EX. Assim, não  há bypass que consiga realizar a entrega do dado a tempo, gerando um stall.
-A lógica implementada verifica se a instrução no estágio EX ou MEM é um LW e, em caso positivo, checa se a instrução atualmente em ID ou EX é uma ALUop que utiliza rs1 ou rs2 coincidentes com o registrador destino do load, uma  Store Word (SW) que utiliza esse registrador como base de endereço, ou um BEQ que depende do valor em qualquer um dos seus dois operandos. Quando qualquer uma dessas condições é satisfeita, o sinal de stall é ativado, parando os estágios Fetch ou Decodificação (IF ouID) e Decodificação ou Execução (ID ou EX) ao inserir um NOP no estágio EX ouMEM pelo ciclo necessário para que o dado esteja disponível via forwarding no ciclo seguinte.
+Na implementação de pipeline utilizada há um caso de data hazard que não pode ser solucionado com forwarding, o load-use hazard, ele acontece quando uma instrução de load
+e seguida de uma intrução que use o resultado do load, quando o load estiver no estágio MEM a próxima instrução vai estar no EX que precisa do valor antes de executar. Isso pode
+ser resolvido com a inserção de uma bolha (instrução NOP) no pipeline, com isso a intrução que utiliza o valor vai atrasar um ciclo antes de chegar no EX e o MEM do load
+já vai ter sido executado. Isso foi implementado no módulo `HazardDetectionUnit` com a seguinte lógica: quando o registrado EX/MEM tiver uma instrução lw e o
+registrado ID/EX tiver uma instrução addi ou beq que utilize o registrador de destino do load como operando um nop é inserido atravez do sinal de stall, com isso o resultado
+do load sofre forward do MEM/WB para o ID/EX.
  
 ## Resultados Obtidos (Bruno Menezes)
 
@@ -165,6 +169,13 @@ Preciso implementar o módulo ForwardingUnit.v para um processador RISC-V com pi
 **Tarefa:** Com base nessas especificaçoes, gere o código Verilog para o módulo ForwardingUnit.v baseado nestas especificações, explicando brevemente a prioridade dada ao hazard do estágio MEM sobre o hazard do estágio WB.
 
 ### **Prompt Utilizado na Parte 3b**
+
+Um modelo de IA foi utilizado para melhor entender a sintaxe e semântica da linguagem verilog.
+
+Prompts:
+
+* Qual a diferença entre reg e wire em verilog?
+* Qual a diferença entre assign, = e <=?
 
 ### **Prompt Utilizado na Parte 4**
 Atue como um Engenheiro de Hardware especialista em RISC-V. Tenho uma implementação de pipeline de 5 estágios em Verilog dividida entre as pastas src e tb.
