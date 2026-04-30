@@ -1,10 +1,10 @@
 # Relatório Técnico: Implementação de Processador RISC-V com Pipeline
 
-Alunos: Bruno Menezes Rodrigues Oliveira Vaz
-João Costa Calazans
-João Pedro Torres
-Lucas Carneiro Nassau Malta
-Pedro Henrique Debs Rabelo
+Alunos: Bruno Menezes Rodrigues Oliveira Vaz,
+João Costa Calazans,
+João Pedro Torres,
+Lucas Carneiro Nassau Malta,
+Pedro Henrique Debs Rabelo,
 
 ## Introdução
 
