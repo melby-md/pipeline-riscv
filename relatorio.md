@@ -1,7 +1,5 @@
 # Relatório Técnico: Implementação de Processador RISC-V com Pipeline
 
-João Costa Calazans
-
 ## Introdução
 
 Os processadores baseados na arquitetura RISC-V têm ganhado enorme destaque acadêmico e na indústria por sua natureza de código aberto e simplicidade (Reduced Instruction Set Computer). Uma das técnicas fundamentais para aumentar o desempenho desses processadores é o **pipeline**. Ao dividir a execução das instruções em múltiplos estágios (como Busca, Decodificação, Execução, Memória e Escrita), o pipeline permite que várias instruções sejam processadas simultaneamente, aumentando o *throughput* (vazão) do processador. No entanto, essa sobreposição de instruções introduz desafios conhecidos como *hazards* (conflitos de dados e de controle), que requerem lógicas adicionais para resolução, como mecanismos de encaminhamento (*forwarding*) e detecção de riscos com inserção de bolhas (*stalls*).
@@ -47,9 +45,29 @@ graph LR
 ```
 
 ### Parte 2: Código Assembly (João Pedro)
-A task load_program_full_dependencies recebeu modificações para permitir o funcionamento correto de um pipeline. A simulação necessitou da implementação manual de Bolhas ou NOPS entre instruções com interdependência de dados, o que apenas atrasa a execução. Esse atraso é essencial para simular um pipeline real, já que o grande problema das dependências é garantir a confiabilidade do dado lido. Para fazer isso a técnicas de NOP funciona magistralmente, pois ao atrasar a próxima instrução se garante que o dado será escrito no registrador para ser usado pela proxima instrução.
-O código original continha varios problemas de dependências, já na primeira linha o load word (lw) do X1 é seguido por um ADDi X2, X1, 5. Essa estrutura tende a gerar uma leitura errada, devido aos estágios em que se encontram. lw só registra o dado no estágio de Acesso a Memória(MEM) e Escrita mas ADDi necessita do mesmo em Execução (EX).
-Logo, a solução foi a implementação das bolhas, que nessa situação foram 3, para garantir que X1 esteja escrito quando ele for requisitado na soma. Outro detalhe que a modificação requer é a alteração do offset do BEQ, ja que com a inserção de mais operações, que aumentam o número total e ocupam espaço na pilha, o endereço do mesmo será alterado e precisou ser recalculado.
+
+#### Contextualização e Problema
+A segunda etapa do projeto consistiu na modificação da `task load_program_full_dependencies` no arquivo `tb_RISCVCPU.v`. O objetivo foi adaptar o código assembly para um caminho de dados que não possui circuitos de hardware para detecção de dependências (*forwarding* ou *stalling*). 
+
+Sem essas proteções, instruções que dependem de resultados de instruções anteriores tentariam ler os dados antes que estes fossem escritos no Banco de Registradores, resultando em erros de execução.
+
+#### Análise de Dependências de Dados (RAW)
+Em um pipeline clássico de 5 estágios (**IF, ID, EX, MEM, WB**), uma instrução completa o ciclo de escrita apenas no final do 5º estágio (**Write Back**). Contudo, a instrução sucessora tenta ler os operandos no 2º estágio (**Instruction Decode**). 
+
+Para garantir a integridade dos dados, é necessário um intervalo de **3 ciclos de atraso** (preenchidos com instruções `NOP`) entre a produção e o consumo do dado. As dependências identificadas foram:
+
+* **`lw x1` → `addi x2`**: Conflito em `x1`.
+* **`addi x2` → `addi x3`**: Conflito em `x2`.
+* **`addi x3` → `sw x3` / `addi x4`**: Conflito em `x3`.
+* **`addi x4` → `beq x4`**: Conflito em `x4`.
+
+#### Estratégia de Reorganização
+Embora as instruções `addi x5` e `addi x6` pudessem ser movidas para os slots de `NOP` gerados pelo primeiro `lw` (uma técnica clássica de escalonamento para otimização de desempenho), optou-se por mantê-las propositalmente após a instrução de desvio.
+
+Como a condição do desvio `beq x4, x4` é sempre verdadeira, o hardware deve realizar o **flush** (descarte) dessas instruções assim que a decisão do salto é consolidada no estágio de execução. Essa decisão de projeto é valiosa para a validação do simulador, pois permite:
+1. Observar o comportamento do hardware diante de um **hazard de controle**.
+2. Garantir que o mecanismo de descarte está funcionando, impedindo que as instruções `x5` e `x6` alterem o estado do processador (Banco de Registradores) de forma espúria.
+3. Validar a economia de ciclos de escrita desnecessários em caminhos de execução não tomados.
 
 ### Parte 3a: Forwarding (Lucas Carneiro)
 O modulo ForwardingUnit.v foi desenvolvido para resolver hazards do tipo RAW sem a necessidade de interromper o pipeline, reduzindo os stalls. O código original continha apenas os sinais de entrada e saída declarados, sem implementação, com as saídas forwardA e forwardB a ser sempre NO_FORWARD.
@@ -141,6 +159,15 @@ Este trabalho é realizado em grupo, e a minha responsabilidade é a primeira et
 **Tarefa:** Com base nestas especificações, gere o código Verilog para o módulo `BranchUnit.v` e explique brevemente como a sinalização de `flush` deve interagir com os registradores de estágio (IF/ID e ID/EX).
 
 ### **Prompt Utilizado na Parte 2**
+
+Para o desenvolvimento deste trabalho, foi utilizado um modelo de IA como ferramenta de tutoria acadêmica. O foco do uso da LLM foi a compreensão dos conceitos de arquitetura de computadores e a validação de cálculos de pipeline.
+
+**Exemplos de prompts utilizados para pesquisa e aprendizado:**
+1. "Como calcular a distância de NOPs necessária entre produção e consumo de dados em um pipeline de 5 estágios sem forwarding?"
+2. "Explique a relação entre o estágio Write Back e Instruction Decode no contexto de hazards RAW."
+3. "Como o campo imediato (offset) de uma instrução BEQ é afetado pela inserção de instruções intermediárias no mapa de memória?"
+
+A implementação final do código assembly e a organização dos NOPs foram realizadas de forma individual, utilizando as respostas da IA apenas como base teórica para garantir a corretude da simulação.
 
 ### **Prompt Utilizado na Parte 3a**
 
