@@ -1,5 +1,11 @@
 # Relatório Técnico: Implementação de Processador RISC-V com Pipeline
 
+Alunos: Bruno Menezes Rodrigues Oliveira Vaz
+João Costa Calazans
+João Pedro Torres
+Lucas Carneiro Nassau Malta
+Pedro Henrique Debs Rabelo
+
 ## Introdução
 
 Os processadores baseados na arquitetura RISC-V têm ganhado enorme destaque acadêmico e na indústria por sua natureza de código aberto e simplicidade (Reduced Instruction Set Computer). Uma das técnicas fundamentais para aumentar o desempenho desses processadores é o **pipeline**. Ao dividir a execução das instruções em múltiplos estágios (como Busca, Decodificação, Execução, Memória e Escrita), o pipeline permite que várias instruções sejam processadas simultaneamente, aumentando o *throughput* (vazão) do processador. No entanto, essa sobreposição de instruções introduz desafios conhecidos como *hazards* (conflitos de dados e de controle), que requerem lógicas adicionais para resolução, como mecanismos de encaminhamento (*forwarding*) e detecção de riscos com inserção de bolhas (*stalls*).
