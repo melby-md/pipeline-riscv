@@ -1,6 +1,10 @@
 # Relatório Técnico: Implementação de Processador RISC-V com Pipeline
 
-João Costa Calazans
+Alunos: Bruno Menezes Rodrigues Oliveira Vaz,
+João Costa Calazans,
+João Pedro Torres,
+Lucas Carneiro Nassau Malta,
+Pedro Henrique Debs Rabelo.
 
 ## Introdução
 
@@ -47,17 +51,41 @@ graph LR
 ```
 
 ### Parte 2: Código Assembly (João Pedro)
-A task load_program_full_dependencies recebeu modificações para permitir o funcionamento correto de um pipeline. A simulação necessitou da implementação manual de Bolhas ou NOPS entre instruções com interdependência de dados, o que apenas atrasa a execução. Esse atraso é essencial para simular um pipeline real, já que o grande problema das dependências é garantir a confiabilidade do dado lido. Para fazer isso a técnicas de NOP funciona magistralmente, pois ao atrasar a próxima instrução se garante que o dado será escrito no registrador para ser usado pela proxima instrução.
-O código original continha varios problemas de dependências, já na primeira linha o load word (lw) do X1 é seguido por um ADDi X2, X1, 5. Essa estrutura tende a gerar uma leitura errada, devido aos estágios em que se encontram. lw só registra o dado no estágio de Acesso a Memória(MEM) e Escrita mas ADDi necessita do mesmo em Execução (EX).
-Logo, a solução foi a implementação das bolhas, que nessa situação foram 3, para garantir que X1 esteja escrito quando ele for requisitado na soma. Outro detalhe que a modificação requer é a alteração do offset do BEQ, ja que com a inserção de mais operações, que aumentam o número total e ocupam espaço na pilha, o endereço do mesmo será alterado e precisou ser recalculado.
+
+#### Contextualização e Problema
+A segunda etapa do projeto consistiu na modificação da `task load_program_full_dependencies` no arquivo `tb_RISCVCPU.v`. O objetivo foi adaptar o código assembly para um caminho de dados que não possui circuitos de hardware para detecção de dependências (*forwarding* ou *stalling*). 
+
+Sem essas proteções, instruções que dependem de resultados de instruções anteriores tentariam ler os dados antes que estes fossem escritos no Banco de Registradores, resultando em erros de execução.
+
+#### Análise de Dependências de Dados (RAW)
+Em um pipeline clássico de 5 estágios (**IF, ID, EX, MEM, WB**), uma instrução completa o ciclo de escrita apenas no final do 5º estágio (**Write Back**). Contudo, a instrução sucessora tenta ler os operandos no 2º estágio (**Instruction Decode**). 
+
+Para garantir a integridade dos dados, é necessário um intervalo de **3 ciclos de atraso** (preenchidos com instruções `NOP`) entre a produção e o consumo do dado. As dependências identificadas foram:
+
+* **`lw x1` → `addi x2`**: Conflito em `x1`.
+* **`addi x2` → `addi x3`**: Conflito em `x2`.
+* **`addi x3` → `sw x3` / `addi x4`**: Conflito em `x3`.
+* **`addi x4` → `beq x4`**: Conflito em `x4`.
+
+#### Estratégia de Reorganização
+Embora as instruções `addi x5` e `addi x6` pudessem ser movidas para os slots de `NOP` gerados pelo primeiro `lw` (uma técnica clássica de escalonamento para otimização de desempenho), optou-se por mantê-las propositalmente após a instrução de desvio.
+
+Como a condição do desvio `beq x4, x4` é sempre verdadeira, o hardware deve realizar o **flush** (descarte) dessas instruções assim que a decisão do salto é consolidada no estágio de execução. Essa decisão de projeto é valiosa para a validação do simulador, pois permite:
+1. Observar o comportamento do hardware diante de um **hazard de controle**.
+2. Garantir que o mecanismo de descarte está funcionando, impedindo que as instruções `x5` e `x6` alterem o estado do processador (Banco de Registradores) de forma espúria.
+3. Validar a economia de ciclos de escrita desnecessários em caminhos de execução não tomados.
 
 ### Parte 3a: Forwarding (Lucas Carneiro)
 O modulo ForwardingUnit.v foi desenvolvido para resolver hazards do tipo RAW sem a necessidade de interromper o pipeline, reduzindo os stalls. O código original continha apenas os sinais de entrada e saída declarados, sem implementação, com as saídas forwardA e forwardB a ser sempre NO_FORWARD.
 A implementação feita detecta dois casos de bypass para os operadores. O primeiro é o forwarding do estágio MEM, ativado quando a instrução em Execução ou Acesso a Memória (EX/MEM) é uma operação ALU (ALUop), seu registrador destino não é x0 e coincide com rs1 ou rs2 da instrução atual em Decodificação e Execução (ID/EX), nesse caso forwardA ou forwardB recebe FROM_MEM. O segundo é o forwarding do estágio de WB, ativado quando a instrução em MEM/WB é uma operação ALU ou um lw, com condições análogas, resultando em FROM_WB_ALU ou FROM_WB_LD respectivamente. A prioridade do forwarding de MEM sobre WB é garantida pela estrutura if/else if, evitando conflito quando ambos os estágios possuem o mesmo registrador destino.
 
 ### Parte 3b: Hazard Detection (Pedro Debs)
-O código do HazardDetectionUnit.v foi alterado para identificar corretamente casos de hazards load-use, ou seja, quando tem-se uma instrução que utiliza de um valor logo em sequência da instrução de leitura do mesmo. Isto ocorre devido ao estágio, pois como o dado ao ser lido so está disponivel após o estágio de WB, enquanto a próxima utiliza no inicio da EX. Assim, não  há bypass que consiga realizar a entrega do dado a tempo, gerando um stall.
-A lógica implementada verifica se a instrução no estágio EX ou MEM é um LW e, em caso positivo, checa se a instrução atualmente em ID ou EX é uma ALUop que utiliza rs1 ou rs2 coincidentes com o registrador destino do load, uma  Store Word (SW) que utiliza esse registrador como base de endereço, ou um BEQ que depende do valor em qualquer um dos seus dois operandos. Quando qualquer uma dessas condições é satisfeita, o sinal de stall é ativado, parando os estágios Fetch ou Decodificação (IF ouID) e Decodificação ou Execução (ID ou EX) ao inserir um NOP no estágio EX ouMEM pelo ciclo necessário para que o dado esteja disponível via forwarding no ciclo seguinte.
+Na implementação de pipeline utilizada há um caso de data hazard que não pode ser solucionado com forwarding, o load-use hazard, ele acontece quando uma instrução de load
+e seguida de uma intrução que use o resultado do load, quando o load estiver no estágio MEM a próxima instrução vai estar no EX que precisa do valor antes de executar. Isso pode
+ser resolvido com a inserção de uma bolha (instrução NOP) no pipeline, com isso a intrução que utiliza o valor vai atrasar um ciclo antes de chegar no EX e o MEM do load
+já vai ter sido executado. Isso foi implementado no módulo `HazardDetectionUnit` com a seguinte lógica: quando o registrado EX/MEM tiver uma instrução lw e o
+registrado ID/EX tiver uma instrução addi ou beq que utilize o registrador de destino do load como operando um nop é inserido atravez do sinal de stall, com isso o resultado
+do load sofre forward do MEM/WB para o ID/EX.
  
 ## Resultados Obtidos (Bruno Menezes)
 
@@ -138,6 +166,15 @@ Este trabalho é realizado em grupo, e a minha responsabilidade é a primeira et
 
 ### **Prompt Utilizado na Parte 2**
 
+Para o desenvolvimento deste trabalho, foi utilizado um modelo de IA como ferramenta de tutoria acadêmica. O foco do uso da LLM foi a compreensão dos conceitos de arquitetura de computadores e a validação de cálculos de pipeline.
+
+**Exemplos de prompts utilizados para pesquisa e aprendizado:**
+1. "Como calcular a distância de NOPs necessária entre produção e consumo de dados em um pipeline de 5 estágios sem forwarding?"
+2. "Explique a relação entre o estágio Write Back e Instruction Decode no contexto de hazards RAW."
+3. "Como o campo imediato (offset) de uma instrução BEQ é afetado pela inserção de instruções intermediárias no mapa de memória?"
+
+A implementação final do código assembly e a organização dos NOPs foram realizadas de forma individual, utilizando as respostas da IA apenas como base teórica para garantir a corretude da simulação.
+
 ### **Prompt Utilizado na Parte 3a**
 
 **Atue como um especialista em Arquitetura de Computadores e Verilog.**
@@ -165,6 +202,13 @@ Preciso implementar o módulo ForwardingUnit.v para um processador RISC-V com pi
 **Tarefa:** Com base nessas especificaçoes, gere o código Verilog para o módulo ForwardingUnit.v baseado nestas especificações, explicando brevemente a prioridade dada ao hazard do estágio MEM sobre o hazard do estágio WB.
 
 ### **Prompt Utilizado na Parte 3b**
+
+Um modelo de IA foi utilizado para melhor entender a sintaxe e semântica da linguagem verilog.
+
+Prompts:
+
+* Qual a diferença entre reg e wire em verilog?
+* Qual a diferença entre assign, = e <=?
 
 ### **Prompt Utilizado na Parte 4**
 Atue como um Engenheiro de Hardware especialista em RISC-V. Tenho uma implementação de pipeline de 5 estágios em Verilog dividida entre as pastas src e tb.
