@@ -14,7 +14,7 @@ Os processadores baseados na arquitetura RISC-V têm ganhado enorme destaque aca
 
 ## Descrição do Desenvolvimento
 
-### Parte 1: Branch e Controle de Fluxo (João C.)
+### Parte 1: Branch e Controle de Fluxo (João Costa Calazans)
 
 A primeira etapa do trabalho consistiu na implementação da Unidade de Desvio (`BranchUnit.v`), responsável por tratar as instruções de desvio condicional, especificamente o `BEQ` (Branch if Equal).
 
